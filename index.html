@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mood Detection System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .pulse-ring {
+            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .float-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .gradient-border {
+            position: relative;
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            padding: 2px;
+            border-radius: 1rem;
+        }
+        
+        .gradient-border-inner {
+            background: rgb(30, 41, 59);
+            border-radius: calc(1rem - 2px);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgb(51, 65, 85);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgb(100, 116, 139);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgb(148, 163, 184);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white min-h-screen">
+    <div class="max-w-7xl mx-auto p-6">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Mood Detection System
+            </h1>
+            <p class="text-slate-300">Real-time multimodal emotion detection</p>
+            
+            <!-- Connection Status -->
+            <div class="mt-4 flex items-center justify-center gap-2">
+                <div id="connectionStatus" class="flex items-center gap-2">
+                    <svg id="statusIcon" class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3"></path>
+                    </svg>
+                    <span id="statusText" class="text-red-400 text-sm">Disconnected</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column - Video Feed -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Video Container -->
+                <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700">
+                    <div class="relative rounded-xl overflow-hidden bg-slate-900 aspect-video">
+                        <video id="videoFeed" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                        <canvas id="overlayCanvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
+                        
+                        <!-- Live Indicator -->
+                        <div id="liveIndicator" class="hidden absolute top-4 right-4 items-center gap-2 bg-red-500/80 px-3 py-1.5 rounded-full">
+                            <div class="w-2 h-2 bg-white rounded-full pulse-ring"></div>
+                            <span class="text-sm font-semibold">LIVE</span>
+                        </div>
+
+                        <!-- Current Detection Overlay -->
+                        <div id="detectionOverlay" class="hidden absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md rounded-xl p-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span id="currentEmoji" class="text-4xl">😐</span>
+                                    <div>
+                                        <div id="currentEmotion" class="text-2xl font-bold capitalize">Neutral</div>
+                                        <div class="text-sm text-slate-300">
+                                            Confidence: <span id="currentConfidence">0.0</span>%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="w-24 h-24">
+                                    <svg viewBox="0 0 100 100" class="transform -rotate-90">
+                                        <circle cx="50" cy="50" r="45" fill="none" stroke="#334155" stroke-width="10"/>
+                                        <circle id="confidenceCircle" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="10" stroke-dasharray="0 283" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="flex items-center justify-center gap-4 mt-6">
+                        <button id="toggleBtn" onclick="toggleDetection()" class="flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-lg transition-all transform hover:scale-105 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span id="toggleText">Start Detection</span>
+                        </button>
+
+                        <button id="downloadBtn" onclick="downloadHistory()" class="hidden items-center gap-2 px-6 py-4 rounded-xl font-semibold bg-slate-700 hover:bg-slate-600 transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            Export Data
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Modality Breakdown -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
+                        <div class="flex items-center gap-2 mb-3">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            <h3 class="font-semibold">Face Detection</h3>
+                        </div>
+                        <div id="faceDetectionContent">
+                            <div class="text-slate-500">Waiting for detection...</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
+                        <div class="flex items-center gap-2 mb-3">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                            </svg>
+                            <h3 class="font-semibold">Voice Analysis</h3>
+                        </div>
+                        <div id="voiceDetectionContent">
+                            <div class="text-slate-500">Waiting for detection...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Stats & History -->
+            <div class="space-y-6">
+                <!-- Session Summary -->
+                <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <h3 class="font-semibold text-lg">Session Summary</h3>
+                    </div>
+                    
+                    <div id="sessionSummary">
+                        <div class="text-center py-8 text-slate-500">
+                            <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p>Start detection to see your mood analysis</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Emotion Timeline -->
+                <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        </svg>
+                        <h3 class="font-semibold text-lg">Emotion Timeline</h3>
+                    </div>
+                    
+                    <div id="emotionTimeline" class="space-y-2 max-h-64 overflow-y-auto">
+                        <div class="text-center py-8 text-slate-500">
+                            No emotion data yet
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Card -->
+                <div class="bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/20">
+                    <h3 class="font-semibold mb-2">How it works</h3>
+                    <ul class="text-sm text-slate-300 space-y-2">
+                        <li class="flex items-start gap-2">
+                            <span class="text-blue-400 mt-0.5">•</span>
+                            <span>Analyzes facial expressions using computer vision</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-purple-400 mt-0.5">•</span>
+                            <span>Processes voice tone and pitch patterns</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-green-400 mt-0.5">•</span>
+                            <span>Fuses both signals for accurate detection</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-slate-400 text-sm">
+            <p>⚠️ This is a supportive tool, not a diagnostic device. Seek professional help for mental health concerns.</p>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const emotions = ['neutral', 'happy', 'sad', 'angry', 'fearful', 'surprised', 'disgusted'];
+        const emotionColors = {
+            neutral: '#94a3b8',
+            happy: '#fbbf24',
+            sad: '#3b82f6',
+            angry: '#ef4444',
+            fearful: '#8b5cf6',
+            surprised: '#ec4899',
+            disgusted: '#10b981'
+        };
+        const emotionEmojis = {
+            neutral: '😐',
+            happy: '😊',
+            sad: '😢',
+            angry: '😠',
+            fearful: '😨',
+            surprised: '😲',
+            disgusted: '🤢'
+        };
+
+        // State
+        let isRecording = false;
+        let emotionHistory = [];
+        let stats = {};
+        let videoStream = null;
+        let ws = null;
+
+        // Initialize
+        async function init() {
+            await startWebcam();
+            connectToBackend();
+        }
+
+        // Start webcam
+        async function startWebcam() {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true, 
+                    audio: true 
+                });
+                document.getElementById('videoFeed').srcObject = videoStream;
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Could not access camera. Please ensure you have granted permission.');
+            }
+        }
+
+        // Connect to Python backend via WebSocket
+        function connectToBackend() {
+            // Change this URL to match your Python WebSocket server
+            const wsUrl = 'ws://localhost:8765';
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    updateConnectionStatus(true);
+                    console.log('Connected to backend');
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    handleBackendUpdate(data);
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateConnectionStatus(false);
+                };
+
+                ws.onclose = () => {
+                    updateConnectionStatus(false);
+                    console.log('Disconnected from backend');
+                    setTimeout(connectToBackend, 3000);
+                };
+            } catch (error) {
+                console.error('Failed to connect:', error);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusIcon = document.getElementById('statusIcon');
+            const statusText = document.getElementById('statusText');
+            
+            if (connected) {
+                statusIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>';
+                statusIcon.className = 'w-5 h-5 text-green-400';
+                statusText.textContent = 'Connected';
+                statusText.className = 'text-green-400 text-sm';
+            } else {
+                statusIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3"></path>';
+                statusIcon.className = 'w-5 h-5 text-red-400';
+                statusText.textContent = 'Disconnected';
+                statusText.className = 'text-red-400 text-sm';
+            }
+        }
+
+        // Handle backend updates
+        function handleBackendUpdate(data) {
+            if (data.face_emotion) {
+                updateFaceDetection(data.face_emotion, data.face_confidence || 0);
+            }
+            if (data.voice_emotion) {
+                updateVoiceDetection(data.voice_emotion, data.voice_confidence || 0);
+            }
+            if (data.final_emotion) {
+                updateCurrentEmotion(data.final_emotion, data.final_confidence || 0);
+                addToHistory(data.final_emotion);
+                updateStats(data.final_emotion);
+            }
+        }
+
+        // Update face detection display
+        function updateFaceDetection(emotion, confidence) {
+            const content = document.getElementById('faceDetectionContent');
+            content.innerHTML = `
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-2xl">${emotionEmojis[emotion]}</span>
+                        <span class="text-lg capitalize">${emotion}</span>
+                    </div>
+                    <div class="w-full bg-slate-700 rounded-full h-2">
+                        <div class="bg-blue-400 h-2 rounded-full transition-all" style="width: ${confidence * 100}%"></div>
+                    </div>
+                    <div class="text-sm text-slate-400 mt-1">
+                        ${(confidence * 100).toFixed(1)}% confidence
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update voice detection display
+        function updateVoiceDetection(emotion, confidence) {
+            const content = document.getElementById('voiceDetectionContent');
+            content.innerHTML = `
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-2xl">${emotionEmojis[emotion]}</span>
+                        <span class="text-lg capitalize">${emotion}</span>
+                    </div>
+                    <div class="w-full bg-slate-700 rounded-full h-2">
+                        <div class="bg-purple-400 h-2 rounded-full transition-all" style="width: ${confidence * 100}%"></div>
+                    </div>
+                    <div class="text-sm text-slate-400 mt-1">
+                        ${(confidence * 100).toFixed(1)}% confidence
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update current emotion display
+        function updateCurrentEmotion(emotion, confidence) {
+            document.getElementById('currentEmoji').textContent = emotionEmojis[emotion];
+            document.getElementById('currentEmotion').textContent = emotion;
+            document.getElementById('currentConfidence').textContent = (confidence * 100).toFixed(1);
+            
+            const circle = document.getElementById('confidenceCircle');
+            circle.setAttribute('stroke', emotionColors[emotion]);
+            circle.setAttribute('stroke-dasharray', `${confidence * 283} 283`);
+            
+            document.getElementById('detectionOverlay').classList.remove('hidden');
+        }
+
+        // Add to history
+        function addToHistory(emotion) {
+            emotionHistory.push({
+                emotion: emotion,
+                timestamp: Date.now()
+            });
+            if (emotionHistory.length > 50) {
+                emotionHistory.shift();
+            }
+            updateTimelineDisplay();
+            document.getElementById('downloadBtn').classList.remove('hidden');
+            document.getElementById('downloadBtn').classList.add('flex');
+        }
+
+        // Update stats
+        function updateStats(emotion) {
+            stats[emotion] = (stats[emotion] || 0) + 1;
+            updateSessionSummary();
+        }
+
+        // Update timeline display
+        function updateTimelineDisplay() {
+            const timeline = document.getElementById('emotionTimeline');
+            if (emotionHistory.length === 0) {
+                timeline.innerHTML = '<div class="text-center py-8 text-slate-500">No emotion data yet</div>';
+                return;
+            }
+            
+            timeline.innerHTML = emotionHistory.slice().reverse().map(entry => `
+                <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-700/50">
+                    <span class="text-2xl">${emotionEmojis[entry.emotion]}</span>
+                    <div class="flex-1">
+                        <div class="capitalize font-medium">${entry.emotion}</div>
+                        <div class="text-xs text-slate-400">
+                            ${new Date(entry.timestamp).toLocaleTimeString()}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update session summary
+        function updateSessionSummary() {
+            const summary = document.getElementById('sessionSummary');
+            if (Object.keys(stats).length === 0) return;
+            
+            const dominant = Object.entries(stats).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+            const total = Object.values(stats).reduce((a, b) => a + b, 0);
+            
+            const statsHtml = emotions.map(emotion => {
+                const count = stats[emotion] || 0;
+                const percentage = total > 0 ? (count / total * 100).toFixed(1) : 0;
+                if (percentage > 0) {
+                    return `
+                        <div>
+                            <div class="flex items-center justify-between text-sm mb-1">
+                                <span class="capitalize flex items-center gap-2">
+                                    <span>${emotionEmojis[emotion]}</span>
+                                    ${emotion}
+                                </span>
+                                <span class="font-semibold">${percentage}%</span>
+                            </div>
+                            <div class="w-full bg-slate-700 rounded-full h-2">
+                                <div class="h-2 rounded-full transition-all" 
+                                     style="width: ${percentage}%; background-color: ${emotionColors[emotion]}">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                return '';
+            }).join('');
+            
+            summary.innerHTML = `
+                <div>
+                    <div class="text-center mb-4">
+                        <div class="text-6xl mb-2 float-animation">${emotionEmojis[dominant]}</div>
+                        <div class="text-2xl font-bold capitalize">${dominant}</div>
+                        <div class="text-slate-400">Dominant Emotion</div>
+                    </div>
+                    <div class="space-y-2">
+                        ${statsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Toggle detection
+        function toggleDetection() {
+            isRecording = !isRecording;
+            const btn = document.getElementById('toggleBtn');
+            const toggleText = document.getElementById('toggleText');
+            const liveIndicator = document.getElementById('liveIndicator');
+            
+            if (isRecording) {
+                btn.className = 'flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-lg transition-all transform hover:scale-105 bg-red-500 hover:bg-red-600';
+                toggleText.textContent = 'Stop Detection';
+                liveIndicator.classList.remove('hidden');
+                liveIndicator.classList.add('flex');
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'start' }));
+                }
+            } else {
+                btn.className = 'flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-lg transition-all transform hover:scale-105 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600';
+                toggleText.textContent = 'Start Detection';
+                liveIndicator.classList.add('hidden');
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'stop' }));
+                }
+            }
+        }
+
+        // Download history
+        function downloadHistory() {
+            const data = {
+                history: emotionHistory,
+                stats: stats,
+                timestamp: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mood_history_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
